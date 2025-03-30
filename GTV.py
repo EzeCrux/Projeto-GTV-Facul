@@ -3,9 +3,10 @@ import re
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 import random
+from tabulate import tabulate
 
 def obter_variaveis(expressao):
-    return sorted(set(re.findall(r'[A-Za-z]', expressao)))
+    return sorted(set(re.findall(r'\b[A-Za-z]\b', expressao)))
 
 def gerar_tabela(variaveis):
     return list(itertools.product([False, True], repeat=len(variaveis)))
@@ -13,18 +14,18 @@ def gerar_tabela(variaveis):
 def avaliar_expressao(expressao, variaveis, valores):
     try:
         contexto = dict(zip(variaveis, valores))
-        return eval(expressao, {}, contexto)
+        return eval(expressao, {"__builtins__": None}, contexto)
     except Exception:
         return None
 
 def formatar_expressao(expressao):
     substituicoes = {
-        "→": "or not",
-        "↔": "==",
-        "⊕": "!=",
-        "¬": "not ",
-        "∧": " and ",
-        "v": " or "
+        "→": " or not ", "=>": " or not ",
+        "↔": " == ", "<=>": " == ",
+        "⊕": " ^ ",
+        "¬": " not ", "!": " not ",
+        "∧": " and ", "&": " and ",
+        "∨": " or ", "|": " or "
     }
     for simbolo, operador in substituicoes.items():
         expressao = expressao.replace(simbolo, operador)
@@ -40,7 +41,7 @@ def classificar_tabela(resultados):
 
 def gerar_expressao_aleatoria():
     variaveis = random.sample("ABCDEFG", random.randint(2, 4))
-    operadores = ["∧", "v", "→", "↔", "⊕"]
+    operadores = ["∧", "∨", "→", "↔", "⊕"]
     expressao = random.choice(variaveis)
     for _ in range(random.randint(1, 3)):
         expressao += f" {random.choice(operadores)} {random.choice(variaveis)}"
@@ -50,26 +51,40 @@ def gerar_expressao_aleatoria():
 def mostrar_instrucoes():
     janela_instrucoes = tk.Toplevel(janela)
     janela_instrucoes.title("Como Usar")
-    janela_instrucoes.geometry("400x300")
+    janela_instrucoes.geometry("450x400")
     
     texto_instrucoes = (
-        "Instruções de Uso:\n"
-        "- Digite uma expressão lógica usando as variáveis A-Z.\n"
+        "Instruções de Uso:\n\n"
+        "- Digite uma expressão lógica usando variáveis de A-Z.\n"
         "- Use os seguintes operadores:\n"
-        "  ∧ (E), v (OU), → (IMPLICAÇÃO), ↔ (BI-IMPLICAÇÃO), ⊕ (XOR), ¬ (NÃO)\n"
+        "  ∧  (E) - Conjunção\n"
+        "  ∨  (OU) - Disjunção\n"
+        "  →  ou =>  (IMPLICAÇÃO)\n"
+        "  ↔  ou <=>  (BI-IMPLICAÇÃO)\n"
+        "  ⊕  (XOR) - OU Exclusivo\n"
+        "  ¬  ou !  (NÃO) - Negação\n\n"
         "- Pressione 'Gerar Tabela' para visualizar a tabela verdade.\n"
-        "- Pressione 'Expressão Aleatória' para gerar um exemplo automático."
+        "- Pressione 'Expressão Aleatória' para gerar um exemplo automático.\n"
+        "- Copie os símbolos abaixo para facilitar a inserção de expressões."
     )
     
-    label = tk.Label(janela_instrucoes, text=texto_instrucoes, justify=tk.LEFT)
-    label.pack(pady=10, padx=10)
+    label = tk.Label(janela_instrucoes, text=texto_instrucoes, justify=tk.LEFT, anchor="w")
+    label.pack(pady=10, padx=10, fill=tk.BOTH)
     
-    entrada_caracteres = tk.Entry(janela_instrucoes, width=30)
-    entrada_caracteres.pack(pady=5)
-    entrada_caracteres.insert(0, "∧ v → ↔ ⊕ ¬")
+    frame_copiar = tk.Frame(janela_instrucoes)
+    frame_copiar.pack(pady=5)
     
-    botao_copiar = tk.Button(janela_instrucoes, text="Copiar", command=lambda: janela_instrucoes.clipboard_append(entrada_caracteres.get()))
-    botao_copiar.pack(pady=5)
+    entrada_caracteres = tk.Entry(frame_copiar, width=40, justify="center")
+    entrada_caracteres.pack(side=tk.LEFT, padx=5)
+    entrada_caracteres.insert(0, "∧ ∨ → ↔ ⊕ ¬ ! & | => <=>")
+    
+    def copiar_simbolos():
+        janela_instrucoes.clipboard_clear()
+        janela_instrucoes.clipboard_append(entrada_caracteres.get())
+        messagebox.showinfo("Copiado", "Símbolos copiados para a área de transferência!")
+    
+    botao_copiar = tk.Button(frame_copiar, text="Copiar", command=copiar_simbolos)
+    botao_copiar.pack(side=tk.LEFT, padx=5)
 
 def gerar_tabela_verdade():
     expressao = entrada_expressao.get()
@@ -80,27 +95,22 @@ def gerar_tabela_verdade():
         messagebox.showwarning("Erro", "Nenhuma variável foi detectada na expressão! Certifique-se de usar letras de A-Z para representar as variáveis.")
         return
     
-    if any(op not in "∧v→↔⊕¬() " and not op.isalpha() for op in expressao):
-        messagebox.showerror("Erro", "Expressão inválida! Verifique se os operadores e parênteses estão corretos. Sugestão: Use parênteses para agrupar corretamente.")
-        return
-    
     tabela = gerar_tabela(variaveis)
     resultados = []
-    tabela_str = "\n" + " | ".join(variaveis) + " | Resultado\n"
-    tabela_str += "=" * (len(variaveis) * 6 + 12) + "\n"
+    linhas = []
     
     for linha in tabela:
         resultado = avaliar_expressao(expressao_formatada, variaveis, linha)
         if resultado is None:
-            messagebox.showerror("Erro", "A expressão inserida é inválida. Verifique os operadores e o uso correto dos parênteses. Sugestão: Tente usar parênteses para evitar ambiguidade.")
+            messagebox.showerror("Erro", "A expressão inserida é inválida. Verifique os operadores e o uso correto dos parênteses.")
             return
         resultados.append(resultado)
-        linha_str = " | ".join(f" {int(v)} " for v in linha) + f" |  {int(resultado)} \n"
-        tabela_str += linha_str
+        linhas.append(list(map(int, linha)) + [int(resultado)])
     
     tipo_tabela = classificar_tabela(resultados)
-    tabela_str += "=" * (len(variaveis) * 6 + 12) + "\n"
-    tabela_str += f"\nClassificação da Tabela: {tipo_tabela}\n"
+    
+    tabela_str = tabulate(linhas, headers=variaveis + ["Resultado"], tablefmt="grid")
+    tabela_str += f"\n\nClassificação da Tabela: {tipo_tabela}\n"
     
     saida_texto.config(state=tk.NORMAL)
     saida_texto.delete(1.0, tk.END)
